@@ -1,0 +1,24 @@
+services:
+  # server:
+  # build:
+  #   context: .
+  # environment:
+  # ports:
+  #   - "3000":"3000"
+
+  dev-db:
+    build:
+      context: ./dockerfiles
+      dockerfile: devdb.dockerfile
+    ports:
+      - 5432:5432
+    volumes:
+      - db-vol:/var/lib/postgresql/data
+    networks:
+      - backend
+
+volumes:
+  db-vol:
+  test-vol:
+networks:
+  backend:
