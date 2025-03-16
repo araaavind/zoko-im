@@ -69,3 +69,41 @@ func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *application) listMessages(w http.ResponseWriter, r *http.Request) {
+	senderID, err := app.readIDParam(r, "sender_id")
+	if err != nil || senderID < 1 {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	receiverID, err := app.readIDParam(r, "receiver_id")
+	if err != nil || receiverID < 1 {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	v := validator.New()
+	qs := r.URL.Query()
+
+	var filters data.Filters
+
+	filters.Cursor = app.readTime(qs, "cursor", time.Now(), v)
+	filters.PageSize = app.readInt(qs, "page_size", 20, v)
+
+	if data.ValidateFilters(v, filters); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	messages, metadata, err := app.models.Messages.GetAllForSenderReceiver(senderID, receiverID, filters)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"messages": messages, "metadata": metadata}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

@@ -46,3 +46,48 @@ func (m *MessageModel) Insert(message *Message) error {
 
 	return m.DB.QueryRowContext(ctx, query, args...).Scan(&message.ID)
 }
+
+func (m *MessageModel) GetAllForSenderReceiver(senderID int64, receiverID int64, filters Filters) ([]*Message, Metadata, error) {
+	query := `
+		SELECT id, timestamp, content, read_status, sender_id, receiver_id
+		FROM messages
+		WHERE ((sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1))
+		AND (timestamp < $3)
+		ORDER BY timestamp DESC
+		LIMIT $4
+	`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := m.DB.QueryContext(ctx, query, senderID, receiverID, filters.Cursor, filters.PageSize)
+	if err != nil {
+		return nil, getEmptyMetadata(filters.Cursor, filters.PageSize), err
+	}
+	defer rows.Close()
+
+	messages := []*Message{}
+
+	for rows.Next() {
+		var message Message
+		err := rows.Scan(&message.ID, &message.Timestamp, &message.Content, &message.ReadStatus, &message.SenderID, &message.ReceiverID)
+		if err != nil {
+			return nil, getEmptyMetadata(filters.Cursor, filters.PageSize), err
+		}
+		messages = append(messages, &message)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, getEmptyMetadata(filters.Cursor, filters.PageSize), err
+	}
+
+	var nextCursor time.Time
+
+	if len(messages) > 0 {
+		nextCursor = messages[len(messages)-1].Timestamp.UTC()
+	}
+
+	metadata := calculateMetadata(filters.Cursor, nextCursor, len(messages), filters.PageSize)
+
+	return messages, metadata, nil
+}

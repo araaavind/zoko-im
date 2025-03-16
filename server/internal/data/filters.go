@@ -12,10 +12,9 @@ type Filters struct {
 }
 
 type Metadata struct {
-	CurrentCursor time.Time `json:"current_cursor"`
-	NextCursor    time.Time `json:"next_cursor"`
-	PageSize      int       `json:"page_size"`
-	TotalSize     int       `json:"total_size"`
+	CurrentCursor string `json:"current_cursor"`
+	NextCursor    string `json:"next_cursor"`
+	PageSize      int    `json:"page_size"`
 }
 
 func ValidateFilters(v *validator.Validator, f Filters) {
@@ -27,10 +26,9 @@ func ValidateFilters(v *validator.Validator, f Filters) {
 
 func getEmptyMetadata(cursor time.Time, pageSize int) Metadata {
 	return Metadata{
-		CurrentCursor: cursor,
-		NextCursor:    cursor,
+		CurrentCursor: cursor.Format(time.RFC3339Nano),
+		NextCursor:    cursor.Format(time.RFC3339Nano),
 		PageSize:      pageSize,
-		TotalSize:     0,
 	}
 }
 
@@ -40,13 +38,8 @@ func calculateMetadata(currentCursor, nextCursor time.Time, totalSize, pageSize 
 	}
 
 	return Metadata{
-		CurrentCursor: currentCursor,
-		NextCursor:    nextCursor,
+		CurrentCursor: currentCursor.Format(time.RFC3339Nano),
+		NextCursor:    nextCursor.Format(time.RFC3339Nano),
 		PageSize:      pageSize,
-		TotalSize:     totalSize,
 	}
-}
-
-func (f Filters) limit() int {
-	return f.PageSize
 }

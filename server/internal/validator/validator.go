@@ -51,5 +51,5 @@ func ValidTimestamp(value time.Time) bool {
 }
 
 func IsTimestampInPast(value time.Time) bool {
-	return value.Before(time.Now())
+	return value.Before(time.Now().Add(time.Millisecond * 200))
 }

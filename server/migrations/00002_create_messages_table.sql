@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS messages (
     id bigserial PRIMARY KEY,  
-    timestamp timestamp(0) with time zone NOT NULL DEFAULT NOW(),
+    timestamp timestamp(3) with time zone NOT NULL DEFAULT NOW(),
     content text NOT NULL,
     sender_id bigint NOT NULL REFERENCES users ON DELETE CASCADE,
     receiver_id bigint NOT NULL REFERENCES users ON DELETE CASCADE,

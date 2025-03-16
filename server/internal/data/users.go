@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -33,7 +34,12 @@ func (m UserModel) Get(id int64) (*User, error) {
 
 	err := m.DB.QueryRowContext(ctx, query, id).Scan(&user.ID, &user.FullName)
 	if err != nil {
-		return nil, err
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
 	}
 
 	return &user, nil

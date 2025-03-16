@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/araaavind/zoko-im/internal/validator"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -113,4 +116,35 @@ func (app *application) readIDParam(r *http.Request, name string) (int64, error)
 	}
 
 	return id, nil
+}
+
+func (app *application) readInt(qs url.Values, key string, defaultValue int, v *validator.Validator) int {
+	s := qs.Get(key)
+
+	if s == "" {
+		return defaultValue
+	}
+
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		v.AddError(key, "Must be an integer value")
+		return defaultValue
+	}
+
+	return i
+}
+
+func (app *application) readTime(qs url.Values, key string, defaultValue time.Time, v *validator.Validator) time.Time {
+	s := qs.Get(key)
+
+	if s == "" {
+		return defaultValue
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		v.AddError(key, "Must be a valid time (RFC3339 format)")
+		return defaultValue
+	}
+
+	return t
 }
