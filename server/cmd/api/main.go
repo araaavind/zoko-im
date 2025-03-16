@@ -136,6 +136,7 @@ func initRedis(cfg config) (*redis.Client, error) {
 		Password: cfg.redis.password,
 		DB:       cfg.redis.db,
 	})
+	defer rdb.Close()
 
 	// Test Redis connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

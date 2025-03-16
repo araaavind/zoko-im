@@ -69,15 +69,19 @@ func (q *MessageQueue) ProcessMessages(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			streams := q.client.XReadGroup(ctx, &redis.XReadGroupArgs{
+			streams, err := q.client.XReadGroup(ctx, &redis.XReadGroupArgs{
 				Group:    q.config.ConsumerGroup,
 				Consumer: q.config.ConsumerName,
 				Streams:  []string{q.config.StreamKey, ">"},
 				Block:    q.config.BlockingDuration,
 				Count:    1,
-			}).Val()
+			}).Result()
 
-			if len(streams) == 0 {
+			if err == redis.Nil {
+				continue
+			} else if err != nil {
+				q.logger.Error("Error reading from consumer group", "error", err)
+				time.Sleep(q.config.RetryDelay)
 				continue
 			}
 
