@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -23,13 +24,21 @@ func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
 
 	_, err = app.models.Users.Get(senderID)
 	if err != nil {
-		app.notFoundResponse(w, r)
+		if errors.Is(err, data.ErrRecordNotFound) {
+			app.notFoundResponse(w, r)
+		} else {
+			app.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 
 	_, err = app.models.Users.Get(receiverID)
 	if err != nil {
-		app.notFoundResponse(w, r)
+		if errors.Is(err, data.ErrRecordNotFound) {
+			app.notFoundResponse(w, r)
+		} else {
+			app.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 
