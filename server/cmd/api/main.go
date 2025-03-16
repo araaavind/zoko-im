@@ -15,9 +15,14 @@ import (
 )
 
 type config struct {
-	port int
-	env  string
-	db   struct {
+	port    int
+	env     string
+	limiter struct {
+		rps     int
+		burst   int
+		enabled bool
+	}
+	db struct {
 		dsn          string
 		maxOpenConns int
 		maxIdleConns int
@@ -51,6 +56,11 @@ func main() {
 
 	flag.IntVar(&cfg.port, "port", 4000, "API port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
+
+	// Limiter configuration
+	flag.IntVar(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
+	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
+	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 
 	// Database configuration
 	flag.StringVar(&cfg.db.dsn, "dsn", os.Getenv("IM_DB_DSN"), "PostgreSQL connection string")

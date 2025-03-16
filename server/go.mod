@@ -1,11 +1,15 @@
 module github.com/araaavind/zoko-im
 
-go 1.22.4
+go 1.23.0
+
+toolchain go1.23.7
 
 require (
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/redis/go-redis/v9 v9.7.1
+	github.com/tomasen/realip v0.0.0-20180522021738-f0c99a92ddce
+	golang.org/x/time v0.11.0
 )
 
 require (
