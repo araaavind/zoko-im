@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/araaavind/zoko-im/internal/data"
+	"github.com/araaavind/zoko-im/internal/validator"
 )
 
 func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
@@ -42,12 +43,19 @@ func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	v := validator.New()
+
 	message := &data.Message{
 		Timestamp:  time.Now(),
 		Content:    input.Content,
 		SenderID:   senderID,
 		ReceiverID: receiverID,
 		ReadStatus: false,
+	}
+
+	if data.ValidateMessage(v, message); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
 	}
 
 	err = app.queue.EnqueueMessage(r.Context(), message)

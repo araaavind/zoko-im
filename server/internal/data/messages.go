@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/araaavind/zoko-im/internal/validator"
 )
 
 type Message struct {
@@ -18,6 +20,11 @@ type Message struct {
 type MessageModel struct {
 	// DB *pgxpool.Pool
 	DB *sql.DB
+}
+
+func ValidateMessage(v *validator.Validator, message *Message) {
+	v.Check(message.Content != "", "content", "Content is required")
+	v.Check(len(message.Content) <= 1000, "content", "Content must be less than 1000 characters")
 }
 
 func (m *MessageModel) Insert(message *Message) error {
