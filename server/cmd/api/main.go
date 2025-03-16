@@ -51,17 +51,20 @@ func main() {
 
 	flag.IntVar(&cfg.port, "port", 4000, "API port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
+
+	// Database configuration
 	flag.StringVar(&cfg.db.dsn, "dsn", os.Getenv("IM_DB_DSN"), "PostgreSQL connection string")
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connections")
 	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 1*time.Minute, "PostgreSQL max idle time")
 
+	// Redis configuration
 	flag.StringVar(&cfg.redis.addr, "redis-addr", "localhost:6379", "Redis server address")
 	flag.StringVar(&cfg.redis.password, "redis-password", "", "Redis password")
 	flag.IntVar(&cfg.redis.db, "redis-db", 0, "Redis database number")
 
 	// Redis stream configuration
-	flag.StringVar(&cfg.redis.stream.key, "redis-stream-key", "messages_stream", "Redis stream key name")
+	flag.StringVar(&cfg.redis.stream.key, "redis-stream-key", "messages-stream", "Redis stream key name")
 	flag.StringVar(&cfg.redis.stream.consumerGroup, "redis-consumer-group", "message_processors", "Redis stream consumer group name")
 	flag.StringVar(&cfg.redis.stream.consumerName, "redis-consumer-name", "message_processor_1", "Redis stream consumer name")
 	flag.DurationVar(&cfg.redis.stream.blockingDuration, "redis-blocking-duration", 5*time.Second, "Redis stream blocking duration")
@@ -152,6 +155,7 @@ func openDB(cfg config) (*sql.DB, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Test database connection
 	err = db.PingContext(ctx)
 	if err != nil {
 		defer db.Close()
