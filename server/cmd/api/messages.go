@@ -116,3 +116,26 @@ func (app *application) listMessages(w http.ResponseWriter, r *http.Request) {
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *application) readMessage(w http.ResponseWriter, r *http.Request) {
+	messageID, err := app.readIDParam(r, "message_id")
+	if err != nil || messageID < 1 {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	err = app.models.Messages.UpdateStatus(messageID, true)
+	if err != nil {
+		if errors.Is(err, data.ErrRecordNotFound) {
+			app.notFoundResponse(w, r)
+		} else {
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"status": "read"}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

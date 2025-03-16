@@ -91,3 +91,29 @@ func (m *MessageModel) GetAllForSenderReceiver(senderID int64, receiverID int64,
 
 	return messages, metadata, nil
 }
+
+func (m *MessageModel) UpdateStatus(messageID int64, readStatus bool) error {
+	query := `
+		UPDATE messages
+		SET read_status = $1
+		WHERE id = $2
+	`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	res, err := m.DB.ExecContext(ctx, query, readStatus, messageID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+	return nil
+}
