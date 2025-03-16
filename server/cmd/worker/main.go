@@ -6,6 +6,8 @@ import (
 	"flag"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/araaavind/zoko-im/internal/data"
@@ -93,14 +95,24 @@ func main() {
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+
+	go func() {
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+		s := <-quit
+
+		logger.Info("shutting down worker", "signal", s.String())
+		cancel()
+	}()
 
 	err = messageQueue.ProcessMessages(ctx)
 	if err != nil && err != context.Canceled {
 		logger.Error("queue consumer failed", "error", err)
+		os.Exit(1)
 	}
 
-	logger.Info("queue consumer stopped")
+	logger.Info("worker stopped")
 }
 
 func initRedis(cfg config) (*redis.Client, error) {
