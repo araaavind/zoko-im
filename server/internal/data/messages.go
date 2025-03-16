@@ -47,6 +47,50 @@ func (m *MessageModel) Insert(message *Message) error {
 	return m.DB.QueryRowContext(ctx, query, args...).Scan(&message.ID)
 }
 
+// Inserts multiple messages in a single transaction
+func (m *MessageModel) BulkInsert(messages []*Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tx, err := m.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := `
+		INSERT INTO messages (timestamp, content, sender_id, receiver_id, read_status)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id`
+
+	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, message := range messages {
+		args := []any{
+			message.Timestamp,
+			message.Content,
+			message.SenderID,
+			message.ReceiverID,
+			message.ReadStatus,
+		}
+
+		err = stmt.QueryRowContext(ctx, args...).Scan(&message.ID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 func (m *MessageModel) GetAllForSenderReceiver(senderID int64, receiverID int64, filters Filters) ([]*Message, Metadata, error) {
 	query := `
 		SELECT id, timestamp, content, read_status, sender_id, receiver_id

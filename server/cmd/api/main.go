@@ -64,7 +64,7 @@ func main() {
 	flag.IntVar(&cfg.redis.db, "redis-db", 0, "Redis database number")
 
 	// Redis stream configuration
-	flag.StringVar(&cfg.redis.stream.key, "redis-stream-key", "messages-stream", "Redis stream key name")
+	flag.StringVar(&cfg.redis.stream.key, "redis-stream-key", "messages_stream", "Redis stream key name")
 	flag.StringVar(&cfg.redis.stream.consumerGroup, "redis-consumer-group", "message_processors", "Redis stream consumer group name")
 	flag.StringVar(&cfg.redis.stream.consumerName, "redis-consumer-name", "message_processor_1", "Redis stream consumer name")
 	flag.DurationVar(&cfg.redis.stream.blockingDuration, "redis-blocking-duration", 5*time.Second, "Redis stream blocking duration")

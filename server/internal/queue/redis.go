@@ -58,10 +58,13 @@ func (q *MessageQueue) ProcessMessages(ctx context.Context) error {
 		return err
 	}
 
+	batchSize := 100
+
 	q.logger.Info(
 		"message worker started",
 		"group", q.config.ConsumerGroup,
 		"consumer", q.config.ConsumerName,
+		"batch size", batchSize,
 	)
 
 	for {
@@ -69,12 +72,13 @@ func (q *MessageQueue) ProcessMessages(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+			// Read a batch of messages
 			streams, err := q.client.XReadGroup(ctx, &redis.XReadGroupArgs{
 				Group:    q.config.ConsumerGroup,
 				Consumer: q.config.ConsumerName,
 				Streams:  []string{q.config.StreamKey, ">"},
 				Block:    q.config.BlockingDuration,
-				Count:    1,
+				Count:    int64(batchSize),
 			}).Result()
 
 			if err == redis.Nil {
@@ -85,47 +89,63 @@ func (q *MessageQueue) ProcessMessages(ctx context.Context) error {
 				continue
 			}
 
-			for _, message := range streams[0].Messages {
-				messageJSON, ok := message.Values["message"].(string)
+			if len(streams) == 0 || len(streams[0].Messages) == 0 {
+				continue
+			}
+
+			messages := make([]*data.Message, 0, len(streams[0].Messages))
+			messageIDs := make([]string, 0, len(streams[0].Messages))
+
+			// Parse messages
+			for _, redisMsg := range streams[0].Messages {
+				messageJSON, ok := redisMsg.Values["message"].(string)
 				if !ok {
-					q.logger.Error("invalid message format", "message_id", message.ID)
-					q.client.XAck(ctx, q.config.StreamKey, q.config.ConsumerGroup, message.ID)
+					q.logger.Error("invalid message format", "message_id", redisMsg.ID)
+					q.client.XAck(ctx, q.config.StreamKey, q.config.ConsumerGroup, redisMsg.ID)
 					continue
 				}
 
 				var msg data.Message
 				err := json.Unmarshal([]byte(messageJSON), &msg)
 				if err != nil {
-					q.logger.Error("failed to unmarshal message", "error", err)
-					q.client.XAck(ctx, q.config.StreamKey, q.config.ConsumerGroup, message.ID)
+					q.logger.Error("failed to unmarshal message", "error", err, "message_id", redisMsg.ID)
+					q.client.XAck(ctx, q.config.StreamKey, q.config.ConsumerGroup, redisMsg.ID)
 					continue
 				}
 
-				// Process message with retries
-				success := false
-				for i := range q.config.MaxRetries {
-					err = q.models.Messages.Insert(&msg)
-					if err == nil {
-						success = true
-						break
-					}
-					q.logger.Error("failed to process message",
-						"error", err,
-						"retry", i+1,
-						"message_id", message.ID)
-					time.Sleep(q.config.RetryDelay)
-				}
+				messages = append(messages, &msg)
+				messageIDs = append(messageIDs, redisMsg.ID)
+			}
 
-				if success {
-					q.logger.Info("message processed successfully",
-						"message_id", message.ID)
-					q.client.XAck(ctx, q.config.StreamKey, q.config.ConsumerGroup, message.ID)
-				} else {
-					// Move to dead letter queue or handle failure
-					q.logger.Error("message processing failed after retries",
-						"message_id", message.ID)
-					// Still acknowledge to prevent blocking
-					q.client.XAck(ctx, q.config.StreamKey, q.config.ConsumerGroup, message.ID)
+			// Process batch with retries
+			success := false
+			for i := range q.config.MaxRetries {
+				err = q.models.Messages.BulkInsert(messages)
+				if err == nil {
+					success = true
+					break
+				}
+				q.logger.Error("failed to process message batch",
+					"error", err,
+					"retry", i+1,
+					"batch_size", len(messages))
+				time.Sleep(q.config.RetryDelay)
+			}
+
+			// Acknowledge messages
+			if success {
+				q.logger.Info("message batch processed successfully",
+					"count", len(messages))
+				// Acknowledge all messages in the batch
+				if len(messageIDs) > 0 {
+					q.client.XAck(ctx, q.config.StreamKey, q.config.ConsumerGroup, messageIDs...)
+				}
+			} else {
+				q.logger.Error("message batch processing failed after retries",
+					"batch_size", len(messages))
+				// Still acknowledge to prevent blocking
+				if len(messageIDs) > 0 {
+					q.client.XAck(ctx, q.config.StreamKey, q.config.ConsumerGroup, messageIDs...)
 				}
 			}
 		}
