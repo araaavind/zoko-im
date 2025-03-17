@@ -27,7 +27,7 @@ func ValidateMessage(v *validator.Validator, message *Message) {
 	v.Check(len(message.Content) <= 1000, "content", "Content must be less than 1000 characters")
 }
 
-func (m *MessageModel) Insert(message *Message) error {
+func (m *MessageModel) Insert(ctx context.Context, message *Message) error {
 	query := `
 		INSERT INTO messages (timestamp, content, sender_id, receiver_id, read_status)
 		VALUES ($1, $2, $3, $4, $5)
@@ -41,20 +41,14 @@ func (m *MessageModel) Insert(message *Message) error {
 		message.ReadStatus,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	return m.DB.QueryRowContext(ctx, query, args...).Scan(&message.ID)
 }
 
 // Inserts multiple messages in a single transaction
-func (m *MessageModel) BulkInsert(messages []*Message) error {
+func (m *MessageModel) BulkInsert(ctx context.Context, messages []*Message) error {
 	if len(messages) == 0 {
 		return nil
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	tx, err := m.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -91,7 +85,7 @@ func (m *MessageModel) BulkInsert(messages []*Message) error {
 	return tx.Commit()
 }
 
-func (m *MessageModel) GetAllForSenderReceiver(senderID int64, receiverID int64, filters Filters) ([]*Message, Metadata, error) {
+func (m *MessageModel) GetAllForSenderReceiver(ctx context.Context, senderID int64, receiverID int64, filters Filters) ([]*Message, Metadata, error) {
 	query := `
 		SELECT id, timestamp, content, read_status, sender_id, receiver_id
 		FROM messages
@@ -100,9 +94,6 @@ func (m *MessageModel) GetAllForSenderReceiver(senderID int64, receiverID int64,
 		ORDER BY timestamp DESC
 		LIMIT $4
 	`
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	rows, err := m.DB.QueryContext(ctx, query, senderID, receiverID, filters.Cursor, filters.PageSize)
 	if err != nil {
@@ -136,15 +127,12 @@ func (m *MessageModel) GetAllForSenderReceiver(senderID int64, receiverID int64,
 	return messages, metadata, nil
 }
 
-func (m *MessageModel) UpdateStatus(messageID int64, readStatus bool) error {
+func (m *MessageModel) UpdateStatus(ctx context.Context, messageID int64, readStatus bool) error {
 	query := `
 		UPDATE messages
 		SET read_status = $1
 		WHERE id = $2
 	`
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	res, err := m.DB.ExecContext(ctx, query, readStatus, messageID)
 	if err != nil {

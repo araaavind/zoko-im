@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 )
 
 type User struct {
@@ -16,7 +15,7 @@ type UserModel struct {
 	DB *sql.DB
 }
 
-func (m UserModel) Get(id int64) (*User, error) {
+func (m UserModel) Get(ctx context.Context, id int64) (*User, error) {
 	if id < 1 {
 		return nil, ErrRecordNotFound
 	}
@@ -28,9 +27,6 @@ func (m UserModel) Get(id int64) (*User, error) {
 	`
 
 	var user User
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	err := m.DB.QueryRowContext(ctx, query, id).Scan(&user.ID, &user.FullName)
 	if err != nil {

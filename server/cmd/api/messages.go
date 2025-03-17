@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -22,7 +23,10 @@ func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = app.models.Users.Get(senderID)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), time.Second)
+	defer cancel()
+
+	_, err = app.models.Users.Get(ctx, senderID)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			app.notFoundResponse(w, r)
@@ -32,7 +36,7 @@ func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = app.models.Users.Get(receiverID)
+	_, err = app.models.Users.Get(ctx, receiverID)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			app.notFoundResponse(w, r)
@@ -105,7 +109,10 @@ func (app *application) listMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	messages, metadata, err := app.models.Messages.GetAllForSenderReceiver(senderID, receiverID, filters)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), time.Second)
+	defer cancel()
+
+	messages, metadata, err := app.models.Messages.GetAllForSenderReceiver(ctx, senderID, receiverID, filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -124,7 +131,10 @@ func (app *application) readMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = app.models.Messages.UpdateStatus(messageID, true)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), time.Second)
+	defer cancel()
+
+	err = app.models.Messages.UpdateStatus(ctx, messageID, true)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			app.notFoundResponse(w, r)

@@ -120,7 +120,7 @@ func (q *MessageQueue) ProcessMessages(ctx context.Context) error {
 			// Process batch with retries
 			success := false
 			for i := range q.config.MaxRetries {
-				err = q.models.Messages.BulkInsert(messages)
+				err = q.models.Messages.BulkInsert(ctx, messages)
 				if err == nil {
 					success = true
 					break
