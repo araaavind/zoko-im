@@ -17,6 +17,10 @@ type Config struct {
 	BlockingDuration time.Duration
 	MaxRetries       int
 	RetryDelay       time.Duration
+	BatchSize        int
+	dlq              struct {
+		key string
+	}
 }
 
 type MessageQueue struct {
@@ -58,13 +62,11 @@ func (q *MessageQueue) ProcessMessages(ctx context.Context) error {
 		return err
 	}
 
-	batchSize := 100
-
 	q.logger.Info(
 		"message worker started",
 		"group", q.config.ConsumerGroup,
 		"consumer", q.config.ConsumerName,
-		"batch size", batchSize,
+		"batch size", q.config.BatchSize,
 	)
 
 	for {
@@ -78,7 +80,7 @@ func (q *MessageQueue) ProcessMessages(ctx context.Context) error {
 				Consumer: q.config.ConsumerName,
 				Streams:  []string{q.config.StreamKey, ">"},
 				Block:    q.config.BlockingDuration,
-				Count:    int64(batchSize),
+				Count:    int64(q.config.BatchSize),
 			}).Result()
 
 			if err == redis.Nil {
@@ -132,21 +134,83 @@ func (q *MessageQueue) ProcessMessages(ctx context.Context) error {
 				time.Sleep(q.config.RetryDelay)
 			}
 
-			// Acknowledge messages
+			// Acknowledge messages or send to DLQ
 			if success {
 				q.logger.Info("message batch processed successfully",
 					"count", len(messages))
-				// Acknowledge all messages in the batch
 				if len(messageIDs) > 0 {
 					q.client.XAck(ctx, q.config.StreamKey, q.config.ConsumerGroup, messageIDs...)
 				}
 			} else {
 				q.logger.Error("message batch processing failed after retries",
 					"batch_size", len(messages))
+				// Send to DLQ
+				for _, msg := range messages {
+					msgJSON, _ := json.Marshal(msg)
+					q.client.XAdd(ctx, &redis.XAddArgs{
+						Stream: q.config.dlq.key,
+						Values: map[string]any{
+							"message": string(msgJSON),
+						},
+					})
+				}
 				// Still acknowledge to prevent blocking
 				if len(messageIDs) > 0 {
 					q.client.XAck(ctx, q.config.StreamKey, q.config.ConsumerGroup, messageIDs...)
 				}
+			}
+		}
+	}
+}
+
+func (q *MessageQueue) ProcessDLQ(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			// Read a batch of messages from the DLQ
+			streams, err := q.client.XRead(ctx, &redis.XReadArgs{
+				Streams: []string{q.config.dlq.key, "$"},
+				Block:   q.config.BlockingDuration,
+				Count:   100,
+			}).Result()
+
+			if err != nil && err != redis.Nil {
+				q.logger.Error("Error reading from DLQ", "error", err)
+				time.Sleep(q.config.RetryDelay)
+				continue
+			}
+
+			if len(streams) == 0 || len(streams[0].Messages) == 0 {
+				continue
+			}
+
+			// Process messages from DLQ
+			for _, redisMsg := range streams[0].Messages {
+				messageJSON, ok := redisMsg.Values["message"].(string)
+				if !ok {
+					q.logger.Error("invalid message format in DLQ", "message_id", redisMsg.ID)
+					continue
+				}
+
+				var msg data.Message
+				err := json.Unmarshal([]byte(messageJSON), &msg)
+				if err != nil {
+					q.logger.Error("failed to unmarshal message from DLQ", "error", err, "message_id", redisMsg.ID)
+					continue
+				}
+
+				// Attempt to reprocess the message
+				err = q.models.Messages.Insert(ctx, &msg)
+				if err != nil {
+					q.logger.Error("failed to reprocess message from DLQ", "error", err, "message_id", redisMsg.ID)
+					continue
+				}
+
+				// Acknowledge the message from DLQ
+				q.logger.Info("message reprocessed successfully from DLQ")
+				q.client.XAck(ctx, q.config.dlq.key, "dlq_processor", redisMsg.ID)
 			}
 		}
 	}

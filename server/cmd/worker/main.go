@@ -34,6 +34,10 @@ type config struct {
 			blockingDuration time.Duration
 			maxRetries       int
 			retryDelay       time.Duration
+			batchSize        int
+		}
+		dlq struct {
+			key string
 		}
 	}
 }
@@ -57,6 +61,8 @@ func main() {
 	flag.DurationVar(&cfg.redis.stream.blockingDuration, "redis-blocking-duration", 5*time.Second, "Redis stream blocking duration")
 	flag.IntVar(&cfg.redis.stream.maxRetries, "redis-max-retries", 3, "Maximum number of retries for message processing")
 	flag.DurationVar(&cfg.redis.stream.retryDelay, "redis-retry-delay", 1*time.Second, "Delay between retry attempts")
+	flag.StringVar(&cfg.redis.dlq.key, "redis-dlq-key", "messages_dlq", "Redis DLQ key name")
+	flag.IntVar(&cfg.redis.stream.batchSize, "redis-batch-size", 100, "Redis batch size")
 
 	flag.Parse()
 
@@ -89,6 +95,7 @@ func main() {
 			BlockingDuration: cfg.redis.stream.blockingDuration,
 			MaxRetries:       cfg.redis.stream.maxRetries,
 			RetryDelay:       cfg.redis.stream.retryDelay,
+			BatchSize:        cfg.redis.stream.batchSize,
 		},
 		logger,
 		models,
@@ -96,6 +103,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Check for SIGINT or SIGTERM and shutdown gracefully
 	go func() {
 		quit := make(chan os.Signal, 1)
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -106,9 +114,21 @@ func main() {
 		cancel()
 	}()
 
+	logger.Info("starting DLQ processor")
+	go func() {
+		err := messageQueue.ProcessDLQ(ctx)
+		if err != nil && err != context.Canceled {
+			logger.Error("DLQ processor failed", "error", err)
+			cancel()
+			os.Exit(1)
+		}
+	}()
+
+	logger.Info("starting message processor")
 	err = messageQueue.ProcessMessages(ctx)
 	if err != nil && err != context.Canceled {
 		logger.Error("queue consumer failed", "error", err)
+		cancel()
 		os.Exit(1)
 	}
 

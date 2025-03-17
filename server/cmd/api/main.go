@@ -33,12 +33,7 @@ type config struct {
 		password string
 		db       int
 		stream   struct {
-			key              string
-			consumerGroup    string
-			consumerName     string
-			blockingDuration time.Duration
-			maxRetries       int
-			retryDelay       time.Duration
+			key string
 		}
 	}
 }
@@ -75,11 +70,6 @@ func main() {
 
 	// Redis stream configuration
 	flag.StringVar(&cfg.redis.stream.key, "redis-stream-key", "messages_stream", "Redis stream key name")
-	flag.StringVar(&cfg.redis.stream.consumerGroup, "redis-consumer-group", "message_processors", "Redis stream consumer group name")
-	flag.StringVar(&cfg.redis.stream.consumerName, "redis-consumer-name", "message_processor_1", "Redis stream consumer name")
-	flag.DurationVar(&cfg.redis.stream.blockingDuration, "redis-blocking-duration", 5*time.Second, "Redis stream blocking duration")
-	flag.IntVar(&cfg.redis.stream.maxRetries, "redis-max-retries", 3, "Maximum number of retries for message processing")
-	flag.DurationVar(&cfg.redis.stream.retryDelay, "redis-retry-delay", 1*time.Second, "Delay between retry attempts")
 
 	flag.Parse()
 
@@ -106,13 +96,9 @@ func main() {
 
 	// Initialize message queue
 	messageQueue := queue.NewMessageQueue(
-		rdb, queue.Config{
-			StreamKey:        cfg.redis.stream.key,
-			ConsumerGroup:    cfg.redis.stream.consumerGroup,
-			ConsumerName:     cfg.redis.stream.consumerName,
-			BlockingDuration: cfg.redis.stream.blockingDuration,
-			MaxRetries:       cfg.redis.stream.maxRetries,
-			RetryDelay:       cfg.redis.stream.retryDelay,
+		rdb,
+		queue.Config{
+			StreamKey: cfg.redis.stream.key,
 		},
 		logger,
 		models,
