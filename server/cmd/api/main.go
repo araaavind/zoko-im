@@ -6,6 +6,7 @@ import (
 	"flag"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/araaavind/zoko-im/internal/data"
@@ -21,6 +22,9 @@ type config struct {
 		rps     int
 		burst   int
 		enabled bool
+	}
+	cors struct {
+		trustedOrigins []string
 	}
 	db struct {
 		dsn          string
@@ -56,6 +60,12 @@ func main() {
 	flag.IntVar(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
+
+	// CORS configuration
+	flag.Func("cors-trusted-origins", "Trusted CORS origins (space separated)", func(val string) error {
+		cfg.cors.trustedOrigins = strings.Fields(val)
+		return nil
+	})
 
 	// Database configuration
 	flag.StringVar(&cfg.db.dsn, "dsn", os.Getenv("IM_DB_DSN"), "PostgreSQL connection string")
