@@ -18,5 +18,5 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/v1/users/:user_id/chats/:peer_id/subscribe", app.subscribe)
 	router.HandlerFunc(http.MethodPatch, "/v1/messages/:message_id/read", app.readMessage)
 
-	return app.recoverPanic(app.rateLimit(router))
+	return app.recoverPanic(app.enableCORS(app.rateLimit(router)))
 }
