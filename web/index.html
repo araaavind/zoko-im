@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zoko Chat</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="sidebar">
+        <div class="header">
+          <h1>Zoko Chat</h1>
+        </div>
+        <div class="user-info">
+          <div class="user-id-container">
+            <label for="user-id">Your ID:</label>
+            <input type="number" id="user-id" min="1" value="1" />
+          </div>
+          <div class="contact-id-container">
+            <label for="contact-id">Contact ID:</label>
+            <input type="number" id="contact-id" min="1" value="2" />
+          </div>
+          <button id="connect-btn">Connect</button>
+        </div>
+      </div>
+      <div class="chat-container">
+        <div class="chat-header">
+          <h2>Chat with <span id="contact-name">Contact</span></h2>
+        </div>
+        <div class="messages" id="messages">
+          <!-- Messages will be added here dynamically -->
+        </div>
+        <div class="input-area">
+          <input
+            type="text"
+            id="message-input"
+            placeholder="Type a message..."
+          />
+          <button id="send-btn">Send</button>
+        </div>
+      </div>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>
