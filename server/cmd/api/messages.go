@@ -2,23 +2,25 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
 
 	"github.com/araaavind/zoko-im/internal/data"
 	"github.com/araaavind/zoko-im/internal/validator"
+	"github.com/coder/websocket"
 )
 
 func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
-	senderID, err := app.readIDParam(r, "sender_id")
-	if err != nil || senderID < 1 {
+	userID, err := app.readIDParam(r, "user_id")
+	if err != nil || userID < 1 {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	receiverID, err := app.readIDParam(r, "receiver_id")
-	if err != nil || receiverID < 1 {
+	peerID, err := app.readIDParam(r, "peer_id")
+	if err != nil || peerID < 1 {
 		app.notFoundResponse(w, r)
 		return
 	}
@@ -26,7 +28,7 @@ func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), time.Second)
 	defer cancel()
 
-	_, err = app.models.Users.Get(ctx, senderID)
+	_, err = app.models.Users.Get(ctx, userID)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			app.notFoundResponse(w, r)
@@ -36,7 +38,7 @@ func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = app.models.Users.Get(ctx, receiverID)
+	_, err = app.models.Users.Get(ctx, peerID)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			app.notFoundResponse(w, r)
@@ -61,8 +63,8 @@ func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
 	message := &data.Message{
 		Timestamp:  time.Now(),
 		Content:    input.Content,
-		SenderID:   senderID,
-		ReceiverID: receiverID,
+		SenderID:   userID,
+		ReceiverID: peerID,
 		ReadStatus: false,
 	}
 
@@ -77,6 +79,14 @@ func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Convert the message to JSON before publishing
+	messageJSON, err := json.Marshal(message)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	app.hub.PublishToUser(userID, peerID, messageJSON)
+
 	err = app.writeJSON(w, http.StatusAccepted, envelope{"message": "Message queued for processing"}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
@@ -84,14 +94,14 @@ func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) listMessages(w http.ResponseWriter, r *http.Request) {
-	senderID, err := app.readIDParam(r, "sender_id")
-	if err != nil || senderID < 1 {
+	userID, err := app.readIDParam(r, "user_id")
+	if err != nil || userID < 1 {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	receiverID, err := app.readIDParam(r, "receiver_id")
-	if err != nil || receiverID < 1 {
+	peerID, err := app.readIDParam(r, "peer_id")
+	if err != nil || peerID < 1 {
 		app.notFoundResponse(w, r)
 		return
 	}
@@ -112,7 +122,7 @@ func (app *application) listMessages(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), time.Second)
 	defer cancel()
 
-	messages, metadata, err := app.models.Messages.GetAllForSenderReceiver(ctx, senderID, receiverID, filters)
+	messages, metadata, err := app.models.Messages.GetAllForSenderReceiver(ctx, userID, peerID, filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -148,4 +158,49 @@ func (app *application) readMessage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
+}
+
+func (app *application) subscribe(w http.ResponseWriter, r *http.Request) {
+	userID, err := app.readIDParam(r, "user_id")
+	if err != nil || userID < 1 {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	peerID, err := app.readIDParam(r, "peer_id")
+	if err != nil || peerID < 1 {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), time.Second)
+	defer cancel()
+
+	_, err = app.models.Users.Get(ctx, userID)
+	if err != nil {
+		if errors.Is(err, data.ErrRecordNotFound) {
+			app.notFoundResponse(w, r)
+		} else {
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	_, err = app.models.Users.Get(ctx, peerID)
+	if err != nil {
+		if errors.Is(err, data.ErrRecordNotFound) {
+			app.notFoundResponse(w, r)
+		} else {
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	conn, err := websocket.Accept(w, r, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	app.hub.HandleConnection(r.Context(), userID, peerID, conn)
 }

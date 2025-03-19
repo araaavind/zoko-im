@@ -10,6 +10,7 @@ import (
 
 	"github.com/araaavind/zoko-im/internal/data"
 	"github.com/araaavind/zoko-im/internal/queue"
+	"github.com/araaavind/zoko-im/internal/websocket"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/redis/go-redis/v9"
 )
@@ -44,6 +45,7 @@ type application struct {
 	models data.Models
 	redis  *redis.Client
 	queue  *queue.MessageQueue
+	hub    *websocket.Hub
 }
 
 func main() {
@@ -94,6 +96,8 @@ func main() {
 
 	models := data.NewModels(db)
 
+	hub := websocket.NewHub(logger, models)
+
 	// Initialize message queue
 	messageQueue := queue.NewMessageQueue(
 		rdb,
@@ -102,6 +106,7 @@ func main() {
 		},
 		logger,
 		models,
+		hub,
 	)
 
 	app := &application{
@@ -110,6 +115,7 @@ func main() {
 		models: models,
 		redis:  rdb,
 		queue:  messageQueue,
+		hub:    hub,
 	}
 
 	err = app.serve()

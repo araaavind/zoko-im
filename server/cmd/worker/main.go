@@ -12,6 +12,7 @@ import (
 
 	"github.com/araaavind/zoko-im/internal/data"
 	"github.com/araaavind/zoko-im/internal/queue"
+	"github.com/araaavind/zoko-im/internal/websocket"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/redis/go-redis/v9"
 )
@@ -99,6 +100,7 @@ func main() {
 		},
 		logger,
 		models,
+		&websocket.Hub{},
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())

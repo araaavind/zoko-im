@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/araaavind/zoko-im/internal/data"
+	"github.com/araaavind/zoko-im/internal/websocket"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -28,14 +29,16 @@ type MessageQueue struct {
 	config Config
 	logger *slog.Logger
 	models data.Models
+	hub    *websocket.Hub
 }
 
-func NewMessageQueue(client *redis.Client, config Config, logger *slog.Logger, models data.Models) *MessageQueue {
+func NewMessageQueue(client *redis.Client, config Config, logger *slog.Logger, models data.Models, hub *websocket.Hub) *MessageQueue {
 	return &MessageQueue{
 		client: client,
 		config: config,
 		logger: logger,
 		models: models,
+		hub:    hub,
 	}
 }
 
