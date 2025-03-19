@@ -17,6 +17,11 @@ type Message struct {
 	ReadStatus bool      `json:"read"`
 }
 
+type Chat struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
 type MessageModel struct {
 	// DB *pgxpool.Pool
 	DB *sql.DB
@@ -148,4 +153,36 @@ func (m *MessageModel) UpdateStatus(ctx context.Context, messageID int64, readSt
 		return ErrRecordNotFound
 	}
 	return nil
+}
+
+func (m *MessageModel) GetAllChatsForUser(ctx context.Context, userID int64) ([]*Chat, error) {
+	query := `
+		SELECT DISTINCT messages.receiver_id, users.full_name
+		FROM messages
+		JOIN users ON messages.receiver_id = users.id
+		WHERE sender_id = $1
+	`
+
+	rows, err := m.DB.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	chats := []*Chat{}
+
+	for rows.Next() {
+		var chat Chat
+		err := rows.Scan(&chat.ID, &chat.Name)
+		if err != nil {
+			return nil, err
+		}
+		chats = append(chats, &chat)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return chats, nil
 }

@@ -13,6 +13,7 @@ func (app *application) routes() http.Handler {
 	router.MethodNotAllowed = http.HandlerFunc(app.methodNotAllowedResponse)
 
 	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthcheck)
+	router.HandlerFunc(http.MethodGet, "/v1/users/:user_id/chats", app.listChats)
 	router.HandlerFunc(http.MethodPost, "/v1/users/:user_id/chats/:peer_id/messages", app.sendMessage)
 	router.HandlerFunc(http.MethodGet, "/v1/users/:user_id/chats/:peer_id/messages", app.listMessages)
 	router.HandlerFunc(http.MethodGet, "/v1/users/:user_id/chats/:peer_id/subscribe", app.subscribe)

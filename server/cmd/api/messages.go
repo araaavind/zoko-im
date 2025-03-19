@@ -12,6 +12,25 @@ import (
 	"github.com/coder/websocket"
 )
 
+func (app *application) listChats(w http.ResponseWriter, r *http.Request) {
+	userID, err := app.readIDParam(r, "user_id")
+	if err != nil || userID < 1 {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	chats, err := app.models.Messages.GetAllChatsForUser(r.Context(), userID)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"chats": chats}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
 func (app *application) sendMessage(w http.ResponseWriter, r *http.Request) {
 	userID, err := app.readIDParam(r, "user_id")
 	if err != nil || userID < 1 {
@@ -196,7 +215,14 @@ func (app *application) subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := websocket.Accept(w, r, nil)
+	originPatterns := []string{}
+	for _, origin := range app.config.cors.trustedOrigins {
+		originPatterns = append(originPatterns, origin)
+	}
+
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		OriginPatterns: originPatterns,
+	})
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
